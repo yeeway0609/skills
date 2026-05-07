@@ -2,7 +2,10 @@
 name: code-review-react-ts
 description: 依優先順序整理的 TypeScript React code review 指引。著重型別安全、React 慣例、效能、安全性、架構、無障礙、錯誤處理與測試。先掃描程式碼找出問題，再從 references/ 取得解法與 review comment 範本。
 metadata:
-  source: https://dev.to/tarunmj6/code-review-for-typescript-react-what-to-look-for-41nl
+  source:
+    - https://cant-maintain.saschb2b.com/learn
+    - https://devouringdetails.com/resources/react-handbook
+    - https://dev.to/tarunmj6/code-review-for-typescript-react-what-to-look-for-41nl
 ---
 
 ## 使用情境與工作流程
@@ -16,12 +19,12 @@ metadata:
 
 ## 審查優先順序（從上到下）
 
-| 優先級             | 內容                                               |
-| ------------------ | -------------------------------------------------- |
-| **High（必修）**   | Security、Type safety、Logic bugs、Performance     |
-| **Medium（應修）** | Architecture、Accessibility、Tests、Error handling |
-| **Low（可選）**    | 組織、命名、小優化                                 |
-| **忽略**           | 個人風格、主觀偏好、bikeshedding                   |
+| 優先級             | 內容                                                  |
+| ----------------- | ---------------------------------------------------- |
+| **High（必修）**   | Security、Type safety、Logic bugs、Performance         |
+| **Medium（應修）** | Architecture、Accessibility、Tests、Error handling     |
+| **Low（建議）**    | Coding style / API 設計偏好（見第 9 類）、命名、小優化       |
+| **忽略**           | 純個人風格、團隊未共識的偏好、bikeshedding                 |
 
 先處理高優先級，再往下。若先評論縮排再談型別安全，順序就錯了。
 
@@ -50,6 +53,7 @@ metadata:
 - [ ] 在 render 中做昂貴計算（未 useMemo）
 - [ ] 整包匯入大型套件（如 `import _ from 'lodash'`）
 - [ ] 列表用 index 當 key 或沒有 key
+- [ ] 高頻互動（mousemove、拖拉、動畫）用 setState 觸發 re-render，且該值不需被其他元件讀取（應改用 useRef 直接寫 DOM）
 
 ### 4. Security（高） → `references/04-security.md`
 
@@ -78,6 +82,34 @@ metadata:
 
 - [ ] 邏輯/API 寫在元件內難以測試
 - [ ] 關鍵流程（如支付）缺少對應測試
+
+### 9. Coding Style / API Design（低，建議性） → `references/09-coding-style.md`
+
+> 非 red flag，採用與否不影響正確性。以 🟡 SUGGESTION 提出，作者可不採納。
+
+由上而下：修改成本由低到高（重命名 → 改型別 → API 重塑）。
+
+🟢 簡單（重命名 / 改型別即可）
+
+- [ ] Boolean prop 缺少 `is` / `has` / `should` 前綴（除非鏡射原生 HTML 屬性）
+- [ ] Callback prop 沒用 `on*` 命名（如 `change` 而非 `onChange`、`onValueChange`）
+- [ ] Prop 名稱重複 component context（`<Dialog isDialogOpen />`、`<Button buttonColor />`）
+- [ ] Prop 型別過寬（用 `string` 但實際只接受少數值，應改 union literal / template literal）
+- [ ] 包裝原生 HTML 元素的元件沒繼承 `React.ComponentProps<'tag'>`，導致 `onClick` / `aria-*` / `className` 無法傳入
+
+🟡 中等（小幅 API / 型別調整）
+
+- [ ] 用多個互斥 boolean 表達狀態，產生不可能的組合（建議改 enum / variant）
+- [ ] 新增 boolean prop 表達其實可由既有 prop 推導的行為（如 `isClosable` 與 `onClose` 並存）
+- [ ] Render prop 用泛用 `children` function，不知道參數意義（建議命名 `renderItem(item, state)`）
+- [ ] Variant-dependent props 用普通 optional union，型別允許不可能組合（建議改 discriminated union）
+- [ ] `value` / `onChange` / `options` 等共生型別寫死，未用 generic 連動推論
+
+🔴 較大（API 結構重塑）
+
+- [ ] 自訂表單元件只支援 controlled 或只支援 uncontrolled（應鏡射原生 `value` / `defaultValue`）
+- [ ] 元件已累積 4+ 個 boolean / className prop 控制內部部位（建議考慮 compound component）
+- [ ] 把 UI 結構塞進 data array 設定（如 `items={[{label, icon, submenu...}]}`），失去 JSX 表達力
 
 ---
 

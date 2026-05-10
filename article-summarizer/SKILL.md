@@ -1,6 +1,7 @@
 ---
 name: article-summarizer
 description: 文章摘要、TL;DR、讀連結。當使用者表達摘要意圖、或僅貼上 URL／Markdown 全文時，抓取或可讀內容後依規則輸出繁中摘要。
+license: MIT
 ---
 
 ## 核心規則

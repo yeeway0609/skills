@@ -1,6 +1,5 @@
 ---
 name: code-review-react-ts
-license: MIT
 description: 依優先順序整理的 TypeScript React code review 指引。著重型別安全、React 慣例、效能、安全性、架構、無障礙、錯誤處理與測試。先掃描程式碼找出問題，再從 references/ 取得解法與 review comment 範本。
 metadata:
   source:

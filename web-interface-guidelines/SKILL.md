@@ -1,6 +1,5 @@
 ---
 name: web-interface-guidelines
-license: MIT
 description: 在實作或檢視網頁介面時，對照 raunofreiberg/interfaces《Web Interface Guidelines》繁中版的一組實務準則，讓互動、視覺與無障礙等細節更符合「好介面」期待。
 metadata:
   source: https://github.com/raunofreiberg/interfaces

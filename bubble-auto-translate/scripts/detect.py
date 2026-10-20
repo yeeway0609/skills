@@ -94,6 +94,31 @@ def background(p):
             "ok": lum >= 222 and sat <= 40 and share >= 0.35}
 
 
+def in_white_bubble(img, box, pad=6):
+    """OCR 文字框（比例座標 x0, y0, x1, y1，原點在左上）是否在白色訊息泡泡裡。
+
+    看文字框左右兩側外推 pad 的直線：泡泡內距比這寬，所以落在泡泡的白底上。
+    只看左右不看上下：多行訊息的上下緊貼著別行文字，會被字形誤判成非白。
+    聊天背景（米色等）亮度約 233，照片底色不一，都會被 245 的門檻排除。
+    img 是 load() 的結果，同一張圖的每一行共用，不重複解碼。
+    """
+    W, H, buf = img
+    s = W / REF_W
+    x0, y0, x1, y1 = box
+    ya, yb = int(y0*H), int(y1*H)
+    pts = [(int(x), y) for x in (x0*W - pad*s, x1*W + pad*s)
+           for y in range(ya, yb+1, max(1, (yb-ya)//6))]
+    pts = [(x, y) for x, y in pts if 0 <= x < W and 0 <= y < H]
+    if not pts:
+        return False
+    white = 0
+    for x, y in pts:
+        r, g, b = _px(buf, W, H, x/W, y/H)
+        if (r+g+b)//3 >= 245 and max(r, g, b)-min(r, g, b) <= 10:
+            white += 1
+    return white >= 0.85*len(pts)
+
+
 def _gray_blobs(W, H, buf, s, lo=150, hi=218, maxsat=28, x0=0.15, y0=0.13, y1=0.95):
     """低飽和度中灰像素的連通區塊。
 

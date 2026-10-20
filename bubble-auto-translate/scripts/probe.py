@@ -1,51 +1,25 @@
 # task: Bubble 聊天室自動翻譯：先量這台手機的參數
-# step: 截圖量彈窗按鈕、背景、語言、捲動幅度，寫進參數檔；不按任何翻譯鈕
+# step: 截圖量彈窗按鈕、背景、捲動幅度，寫進參數檔；不按任何翻譯鈕
 #
 # 用法（PH_BUBBLE_DIR 指向這個 scripts 資料夾）：
 #   PH_BUBBLE_DIR=<skill>/scripts phone-harness < <skill>/scripts/probe.py
+# 環境變數：
+#   PH_BUBBLE_TARGET=<Vision 語言代碼>  譯文語言，預設 zh-Hant（繁中）；例如 en-US、ja-JP、zh-Hans
 # 最後一行是 RESULT：
 #   RESULT ok                    參數已存，可以開始翻譯
 #   RESULT background            聊天背景太暗、太花或是圖片，請使用者換淺色純色背景
 #   RESULT not-chat              畫面不在聊天室
-import os, re, shutil, sys, time
+import os, shutil, sys, time
 
 sys.dont_write_bytecode = True                              # 不在 skill 資料夾留下 __pycache__
 sys.path.insert(0, os.environ.get("PH_BUBBLE_DIR") or sys.exit("要設定 PH_BUBBLE_DIR=<skill>/scripts"))
 import bubble, detect
 from bubble import P
 
-# 每種語言用它的文字範圍判斷畫面上有沒有：原文與譯文都可能是任何一種
-SCRIPTS = {
-    "ko-KR": r"[가-힣]",
-    "ja-JP": r"[぀-ヿ]",
-    "zh-Hant": r"[一-鿿]",
-    "th-TH": r"[฀-๿]",
-    "ru-RU": r"[Ѐ-ӿ]",
-    "ar-SA": r"[؀-ۿ]",
-    "en-US": r"[A-Za-z]",
-}
-KANA = re.compile(SCRIPTS["ja-JP"])
-
-
-def detect_langs(p):
-    """每種語言各 OCR 一次，數該語言文字的字數，夠多的就列入。
-    漢字只算沒有假名的行，日文行裡的漢字不會讓中文誤入選。"""
-    found = {}
-    for lang, pat in SCRIPTS.items():
-        try:
-            lines = [t for t, ry in bubble.ocr(p, [lang]) if 0.17 < ry < 0.94]
-        except RuntimeError as e:                           # 這台 Mac 的 Vision 不支援就跳過這個語言
-            print(f"略過 {lang}：{e}")
-            continue
-        if lang == "zh-Hant":
-            lines = [t for t in lines if not KANA.search(t)]
-        n = sum(len(re.findall(pat, t)) for t in lines)
-        if n >= (15 if lang == "en-US" else 6):
-            found[lang] = n
-    langs = sorted((l for l in found if l != "en-US"), key=lambda l: -found[l])
-    if "zh-Hant" in langs:
-        langs.insert(langs.index("zh-Hant") + 1, "zh-Hans")
-    return langs + ["en-US"], found
+# 原文只有韓文（偶爾夾英文），譯文預設繁中。語言固定，不看畫面猜：
+# 照片、貼圖上的字會讓自動偵測多出泰文、日文等，OCR 語言越多越容易讀錯
+TARGET = os.environ.get("PH_BUBBLE_TARGET") or "zh-Hant"
+LANGS = list(dict.fromkeys(["ko-KR", TARGET, "en-US"]))
 
 
 def first_chat_shot():
@@ -95,18 +69,19 @@ def main():
     params = dict(P)
     if agree:
         params["agree"] = [round(agree[0], 3), round(agree[1], 3)]
+    params["langs"] = LANGS
     bubble.P.update(params); detect.configure(params)
 
     bg = detect.background(p)
     n_btn = len(detect.buttons(p))
-    langs, counts = detect_langs(p)
-    params["langs"] = langs
+    n_msg = sum(1 for _, ry in bubble.ocr(p, bubbles_only=True) if 0.17 < ry < 0.94)
 
     print(f"視窗 {w['w']}×{w['h']} pt，截圖 {W}×{H} px")
     print(f"截屏檢測同意鈕：{params['agree'] if agree else '沒看到彈窗，沿用預設 ' + str(P['agree'])}")
     print(f"背景：亮度 {bg['lum']}，飽和度 {bg['sat']}，主色佔 {bg['share']:.0%}，{'可用' if bg['ok'] else '不可用'}")
     print(f"這頁偵測到翻譯鈕 {n_btn} 個")
-    print(f"OCR 語言：{langs}（各語言字數 {counts}）")
+    print(f"OCR 語言：{LANGS}（原文韓文、英文，譯文 {TARGET}）")
+    print(f"白色訊息泡泡內讀到 {n_msg} 行文字（照片、貼圖上的字不算）")
     if not bg["ok"]:
         print("RESULT background"); return
 

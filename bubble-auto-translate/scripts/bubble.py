@@ -89,9 +89,10 @@ def scroll_once(amount, direction="down"):
 
 # --- OCR ---
 
-def ocr(p, langs=None):
+def ocr(p, langs=None, bubbles_only=False):
     """回傳 [(text, ry)]，ry 是行中心在視窗內的高度比例（0 在上）。
-    一定要指定語言：不指定時 Vision 會把韓文、泰文等讀成亂碼。"""
+    一定要指定語言：不指定時 Vision 會把韓文讀成亂碼。
+    bubbles_only：只留白色訊息泡泡裡的行，照片、貼圖上的字和聊天背景上的時間都不算。"""
     h = Vision.VNImageRequestHandler.alloc().initWithURL_options_(NSURL.fileURLWithPath_(p), {})
     r = Vision.VNRecognizeTextRequest.alloc().init()
     r.setRecognitionLevel_(Vision.VNRequestTextRecognitionLevelAccurate)
@@ -100,10 +101,14 @@ def ocr(p, langs=None):
     ok, err = h.performRequests_error_([r], None)
     if not ok:
         raise RuntimeError(f"OCR 失敗（語言 {langs or P['langs']}）：{err}")
+    img = detect.load(p) if bubbles_only else None
     out = []
     for o in r.results() or []:
-        b = o.boundingBox()
-        out.append((str(o.topCandidates_(1)[0].string()), 1 - b.origin.y - b.size.height/2))
+        b = o.boundingBox()                                 # Vision 的原點在左下
+        top = 1 - b.origin.y - b.size.height
+        if img and not detect.in_white_bubble(img, (b.origin.x, top, b.origin.x + b.size.width, top + b.size.height)):
+            continue
+        out.append((str(o.topCandidates_(1)[0].string()), top + b.size.height/2))
     return out
 
 
@@ -129,9 +134,12 @@ def times(lines):
 
 
 def anchors_from(lines):
-    """起點畫面最上面 3 行訊息文字當錨點：按翻譯只會在下方加譯文，原文不變。"""
+    """起點畫面最上面 3 行訊息文字當錨點：按翻譯只會在下方加譯文，原文不變。
+    lines 要用 ocr(p, bubbles_only=True)，照片上的字不能當錨點。
+    符號、數字佔超過四分之一的行多半是 OCR 讀錯或介面文字，回頭找時比對不到，不拿來當錨點。"""
     msg = sorted((ry, t.strip()) for t, ry in lines
-                 if 0.17 < ry < 0.94 and sum(ch.isalpha() for ch in t) >= 4)
+                 if 0.17 < ry < 0.94 and sum(ch.isalpha() for ch in t) >= 4
+                 and sum(ch.isalpha() or ch.isspace() for ch in t.strip()) >= 0.75 * len(t.strip()))
     return [t for _, t in msg[:3]]
 
 

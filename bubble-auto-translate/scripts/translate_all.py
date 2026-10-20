@@ -79,14 +79,22 @@ def at_start(lines, start, anchors):
 
 
 def go_to_start(start, anchors):
-    """往上逐頁找起點，找到後往下微調，讓錨點停在畫面上方。"""
+    """往上逐頁找起點，找到後往下微調，讓錨點停在畫面上方。
+    整頁時間都早於起點就是捲過頭，掉頭往下；整頁都晚於起點再掉頭往上。每次掉頭捲動量減半，
+    避免來回跳過起點頁。掉頭過代表起點就在附近，這時錨點認不出（OCR 讀錯）也照時間停：
+    這頁的時間橫跨起點就算到了。"""
+    direction, amount, turned = "up", P["seek"], False
     for _ in range(80):
         p = capture("seek.png"); lines = ocr(p); dismiss_pending()
-        if at_start(lines, start, anchors):
+        ds = [rel(t, start) for t in times(lines)]
+        if at_start(lines, start, anchors) or (turned and ds and min(ds) <= 0 <= max(ds)):
             break
-        scroll_once(P["seek"], "up")
+        want = "down" if ds and max(ds) < 0 else "up" if ds and min(ds) > 0 else direction
+        if want != direction:
+            direction, amount, turned = want, max(amount / 2, P["fine"]), True
+        scroll_once(amount, direction)
     else:
-        print("警告：往上 80 頁都沒找到起點，停在目前位置", flush=True)
+        print("警告：找了 80 頁都沒找到起點，停在目前位置", flush=True)
         return
     for _ in range(6):
         ry = find_anchor(lines, anchors) if anchors else None
@@ -118,7 +126,7 @@ def main():
         if not ts0:
             raise SystemExit("起點畫面讀不到時間，請換一個有時間戳記的位置再開始")
         start = min(ts0, key=lambda t: rel(t, ts0[0]))  # 畫面上最早的時間
-        anchors = anchors_from(lines0)
+        anchors = anchors_from(ocr(p0, bubbles_only=True))
     print(f"起點時間 {fmt(start)}", flush=True)
     if anchors:
         print("起點錨點（接續時用 PH_BUBBLE_ANCHOR 傳回）：" + "|".join(anchors), flush=True)
